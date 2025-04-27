@@ -1,4 +1,5 @@
-﻿using Ambev.DeveloperEvaluation.Domain.Entities;
+using Ambev.DeveloperEvaluation.Domain.Common;
+using Ambev.DeveloperEvaluation.Domain.Entities;
 using Ambev.DeveloperEvaluation.Domain.Repositories;
 using Microsoft.EntityFrameworkCore;
 
@@ -71,5 +72,51 @@ public class UserRepository : IUserRepository
         _context.Users.Remove(user);
         await _context.SaveChangesAsync(cancellationToken);
         return true;
+    }
+    
+    /// <summary>
+    /// Gets a paginated list of all users
+    /// </summary>
+    /// <param name="parameters">Pagination parameters</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>A paginated list of users</returns>
+    public async Task<PagedList<User>> GetUsersAsync(PaginationParameters parameters, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Users.AsQueryable();
+        
+        // Apply ordering if specified
+        if (!string.IsNullOrWhiteSpace(parameters.OrderBy))
+        {
+            // Parse the OrderBy string to determine property and direction
+            var orderParams = parameters.OrderBy.Trim().Split(' ');
+            var propertyName = orderParams[0].Trim().ToLower();
+            var isDescending = orderParams.Length > 1 && orderParams[1].Trim().ToLower() == "desc";
+            
+            // Apply appropriate ordering based on property name
+            query = propertyName switch
+            {
+                "username" => isDescending ? query.OrderByDescending(u => u.Username) : query.OrderBy(u => u.Username),
+                "email" => isDescending ? query.OrderByDescending(u => u.Email) : query.OrderBy(u => u.Email),
+                "name" => isDescending ? query.OrderByDescending(u => u.Name) : query.OrderBy(u => u.Name),
+                "createdat" => isDescending ? query.OrderByDescending(u => u.CreatedAt) : query.OrderBy(u => u.CreatedAt),
+                _ => query.OrderBy(u => u.Username) // Default to username if property not recognized
+            };
+        }
+        else
+        {
+            // Default ordering by username ascending
+            query = query.OrderBy(u => u.Username);
+        }
+        
+        // Get total count for pagination
+        var count = await query.CountAsync(cancellationToken);
+        
+        // Apply pagination
+        var items = await query
+            .Skip((parameters.PageNumber - 1) * parameters.PageSize)
+            .Take(parameters.PageSize)
+            .ToListAsync(cancellationToken);
+        
+        return new PagedList<User>(items, count, parameters.PageNumber, parameters.PageSize);
     }
 }
