@@ -10,6 +10,8 @@ public class DefaultContext : DbContext
 {
     public DbSet<User> Users { get; set; }
     public DbSet<Product> Products { get; set; }
+    public DbSet<Cart> Carts { get; set; }
+    public DbSet<CartItem> CartItems { get; set; }
 
     public DefaultContext(DbContextOptions<DefaultContext> options) : base(options)
     {
@@ -22,6 +24,32 @@ public class DefaultContext : DbContext
         // Configure ProductRating as owned entity
         modelBuilder.Entity<Product>()
             .OwnsOne(p => p.Rating);
+            
+        // Configure Cart and CartItem relationships
+        // A Cart has many CartItems
+        modelBuilder.Entity<Cart>()
+            .HasMany(c => c.CartItems)
+            .WithOne(ci => ci.Cart)
+            .HasForeignKey(ci => ci.CartId)
+            .OnDelete(DeleteBehavior.Cascade);
+            
+        // Configure CartItem entity
+        modelBuilder.Entity<CartItem>(entity =>
+        {
+            entity.HasKey(ci => ci.Id);
+            
+            entity.Property(ci => ci.ProductId)
+                .IsRequired();
+                
+            entity.Property(ci => ci.Quantity)
+                .IsRequired();
+                
+            // Configure relationship between CartItem and Product
+            entity.HasOne<Product>()
+                .WithMany()
+                .HasForeignKey(ci => ci.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
             
         base.OnModelCreating(modelBuilder);
     }
